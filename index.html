@@ -1497,6 +1497,7 @@ body {
 //  GOOGLE SHEETS CONFIG
 // ============================================================
 var GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzKxqiIFJIuznxlemE1j23gLqAL81qms1Ez-dHWH56MCL-qmIRH5T_4jYiE-4frYa0-_Q/exec";
+var SHEET_ID = "1T_pQZHCjo1jeSyTXi1WqYqphi6d2xKBdHlgnwYgMgE0";
 
 const questions = [
   { text: "Пару месяцев назад у вас завязались новые отношения, и вы впервые выбрались вместе на выходных в небольшое путешествие. Кажется, что все прошло идеально, но после возвращения домой ваш партнер узнал, что его младшего ребенка обижают хулиганы, и ему нужно несколько дней на то, чтобы разобраться с этой проблемой до вашего следующего свидания.", options: [{ letter:"А", text:"Вы все понимаете и, чтобы помочь, отправляете по почте список консультантов и статей о хулиганстве, несмотря на то что вас никто об этом не просил.", value:"A" },{ letter:"Б", text:"Вы прекрасно понимаете, что такая ситуация может быть очень болезненной и стрессовой. Вы сообщаете, что будете рады увидеться при первой возможности и что готовы пообщаться по телефону или с помощью сообщений, когда все немного наладится.", value:"B" },{ letter:"В", text:"Вначале вы хотите проявить сочувствие, но затем начинаете злиться, что вас отодвинули на задний план. Вы отправляете сообщение о необходимости научиться совмещать ваши отношения с родительскими обязанностями.", value:"C" },{ letter:"Г", text:"Вы уверены в том, что во время вашей поездки партнер узнал о вас что-то новое и возненавидел вас. Это всего лишь способ подготовить почву для разрыва отношений.", value:"D" }] },
@@ -1843,31 +1844,31 @@ function doLogout() {
 // ============================================================
 //  DATA LOADING
 // ============================================================
-async function loadData() {
+function loadData() {
   const body = document.getElementById("table-body");
   const refreshBtn = document.getElementById("refresh-btn");
   body.innerHTML = `<div class="loading-wrap"><div class="spinner"></div><div>Загрузка данных...</div></div>`;
   if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.innerHTML = "⏳"; }
 
-  // Google Apps Script requires no-cors for POST but supports JSONP for GET
-  // We use a callback-based JSONP approach to avoid CORS errors
-  const callbackName = "gsCallback_" + Date.now();
-  const script = document.createElement("script");
+  // Remove previous callback script if exists
+  const oldScript = document.getElementById("jsonp-script");
+  if (oldScript) oldScript.remove();
+
+  const cbName = "adminCb" + Date.now();
   const timeout = setTimeout(() => {
-    cleanup();
-    body.innerHTML = `<div class="empty-wrap"><div class="empty-icon">⚠️</div><div style="font-weight:600;margin-bottom:6px">Ошибка загрузки</div><div style="font-size:12px;color:var(--muted)">Проверьте настройки Apps Script</div></div>`;
+    delete window[cbName];
+    const s = document.getElementById("jsonp-script");
+    if (s) s.remove();
+    body.innerHTML = `<div class="empty-wrap"><div class="empty-icon">⚠️</div><div style="font-weight:600;margin-bottom:6px">Ошибка загрузки</div><div style="font-size:12px;color:var(--muted)">Не удалось получить данные. Проверьте Apps Script.</div></div>`;
     if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.innerHTML = "↻ Обновить"; }
   }, 10000);
 
-  function cleanup() {
+  window[cbName] = function(data) {
     clearTimeout(timeout);
-    delete window[callbackName];
-    if (script.parentNode) script.parentNode.removeChild(script);
-  }
-
-  window[callbackName] = function(data) {
-    cleanup();
-    allData = Array.isArray(data) ? data.reverse() : [];
+    delete window[cbName];
+    const s = document.getElementById("jsonp-script");
+    if (s) s.remove();
+    allData = Array.isArray(data) ? data.slice().reverse() : [];
     if (allData.length === 0) {
       body.innerHTML = `<div class="empty-wrap"><div class="empty-icon">📭</div><div style="font-weight:600;margin-bottom:6px">Результатов пока нет</div><div style="font-size:12px;color:var(--muted)">Они появятся здесь после прохождения теста</div></div>`;
     } else {
@@ -1877,7 +1878,9 @@ async function loadData() {
     if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.innerHTML = "↻ Обновить"; }
   };
 
-  script.src = GOOGLE_SCRIPT_URL + "?callback=" + callbackName;
+  const script = document.createElement("script");
+  script.id = "jsonp-script";
+  script.src = GOOGLE_SCRIPT_URL + "?callback=" + cbName;
   document.head.appendChild(script);
 }
 
